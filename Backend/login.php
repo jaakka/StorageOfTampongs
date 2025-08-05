@@ -2,44 +2,58 @@
     // ini_set('display_errors', 1);
     // error_reporting(E_ALL);
 
-    include("database.php");
-
-    header('Content-Type: application/json');
+    include("json_response.php");
 
     if ($_SERVER['REQUEST_METHOD'] === 'POST') 
     {
         $data = json_decode(file_get_contents('php://input'), true);
         if (isset($data["username"], $data["password"])) {
-            verify_password($data["username"], $data["password"]);
-        } else {
+            handle_password($data["username"], $data["password"]);
+        } 
+        else 
+        {
             json_response(['message' => 'Some keys missing from post request.'], 400);
         }
-    } else {
-        http_response_code(['message' => 'Only POST requests allowed.'], 405);
+    } 
+    else 
+    {
+        json_response(['message' => 'Only POST requests allowed.'], 405);
     }
 
-    function verify_password($user, $pass)
+    function handle_password($user, $pass)
     {
-        // $conn = new mysqli($servername, $username, $password, $dbname);
-
-        // if ($conn->connect_error) {
-        //     die("Connection failed: " . $conn->connect_error);
-        //     json_output(['message' => 'Only POST requests allowed.']);
-        // }
-
-        // $sql = "SELECT id, username, password FROM users";
-        // $result = $conn->query($sql);
+        include("database.php");
+        $conn = new mysqli($servername, $username, $password, $dbname);
         
-        // (password_verify("test", $row["password"]))
-
-    }
-    
-    function json_response($data, $status = 200)
-    {
-        if($status != 200)
-        {
-            http_response_code($status);
+        if ($conn->connect_error) {
+            json_output(['message' => "Connection failed: " . $conn->connect_error]);
+            return;
         }
-        echo json_encode($data);
+
+        // Sql-inject protected
+        $stmt = $conn->prepare("SELECT id, username, password FROM users WHERE username = ?");
+        $stmt->bind_param("s", $user);
+        $stmt->execute();
+        $result = $stmt->get_result();
+
+        if ($row = $result->fetch_assoc()) 
+        {
+            // Server side salt password verify
+            if (password_verify($pass, $row["password"])) 
+            {
+                json_response(['message' => 'Login successful']);
+            } 
+            else 
+            {
+                // Todo: Add try times by ip-address or max try times
+                json_response(['message' => 'Invalid password'], 401);
+            }
+        } 
+        else 
+        {
+            json_response(['message' => 'User not found'], 404);
+        }
+        $stmt->close();
+        $conn->close();
     }
 ?>

@@ -48,7 +48,7 @@
             // Server side salt password verify
             if (password_verify($pass, $row["password"])) 
             {
-                user_success_login($user_id, $user);
+                user_success_login($row["id"], $user);
             } 
             else 
             {

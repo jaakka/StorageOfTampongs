@@ -48,7 +48,7 @@
             // Server side salt password verify
             if (password_verify($pass, $row["password"])) 
             {
-                user_success_login($row["id"], $user);
+                user_success_login($row["id"], $user, "");
             } 
             else 
             {
@@ -64,12 +64,34 @@
         $conn->close();
     }
 
-    function user_success_login($user_id, $user)
+   function user_success_login($user_id, $user, $device_name)
     {
         session_start(); 
         $_SESSION['user_id'] = $user_id;
         $_SESSION['username'] = $user;
+
+        $device_token = bin2hex(random_bytes(32));
+
+        include("database.php");
+        $conn = new mysqli($servername, $username, $password, $dbname);
+        $stmt = $conn->prepare("INSERT INTO devices (user_id, name, token) VALUES (?, ?, ?)");
+        $stmt->bind_param("iss", $user_id, $device_name, $device_token);
+        $success = $stmt->execute();
+        $stmt->close();
+        $conn->close();
+
+        setcookie('device_token', $device_token, time() + 60*60*24*30, '/', '', true, true);
+
         clear_user_attempts($user);
-        json_response(['message' => 'Login successful']);
+
+        if ($success) {
+            json_response([
+                'message' => 'Login and device registration successful',
+                'device_name' => $device_name,
+                'device_token' => $device_token
+            ]);
+        } else {
+            json_response(['message' => 'Login ok, but device registration failed'], 500);
+        }
     }
 ?>

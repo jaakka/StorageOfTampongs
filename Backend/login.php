@@ -22,6 +22,13 @@
 
     function handle_password($user, $pass)
     {
+        include("login_ip_protect.php");
+        $ip = $_SERVER['REMOTE_ADDR'];
+        if (too_many_attempts($ip)) {
+            json_response(['message' => 'Too many login attempts. Try again later.'], 429);
+            return;
+        }
+
         include("database.php");
         $conn = new mysqli($servername, $username, $password, $dbname);
         
@@ -41,11 +48,11 @@
             // Server side salt password verify
             if (password_verify($pass, $row["password"])) 
             {
-                json_response(['message' => 'Login successful']);
+                user_success_login($user_id, $user);
             } 
             else 
             {
-                // Todo: Add try times by ip-address or max try times
+                log_login_attempt($ip, $user);
                 json_response(['message' => 'Invalid password'], 401);
             }
         } 
@@ -55,5 +62,14 @@
         }
         $stmt->close();
         $conn->close();
+    }
+
+    function user_success_login($user_id, $user)
+    {
+        session_start(); 
+        $_SESSION['user_id'] = $user_id;
+        $_SESSION['username'] = $user;
+        clear_user_attempts($user);
+        json_response(['message' => 'Login successful']);
     }
 ?>
